@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="comment">
+
+<!-- 댓글 달기 -->
+<insert id="insertcomment" parameterType="c">
+INSERT INTO 
+	TB_COMMENT 
+VALUES(
+	COMMENT_SEQ.NEXTVAL
+	,#{commentBoardNum}
+	,#{commentBoardUserId}
+	,#{commentContent}
+	,TO_CHAR(sysdate, 'YYYY/MM/DD HH24:MI:ss')
+	)
+</insert>
+
+<!-- 게시글 번호에 해당하는 댓글 가져오기 -->
+<select id="commentkist" parameterType="c" resultType="c">
+SELECT 
+	COMMENT_NUM AS commentNum
+	,COMMENT_BOARD_NUM AS commentBoardNum
+	,COMMENT_BOARD_USER_ID AS commentBoardUserId
+	,COMMENT_CONTENT AS commentContent
+	,COMMENT_REGTIME AS commentRegTime
+FROM 
+	TB_COMMENT
+WHERE 
+	COMMENT_BOARD_NUM=#{bno}
+ORDER BY COMMENT_REGTIME ASC
+</select> 
+
+<!-- 댓글 삭제 -->
+<delete id="delcomment" parameterType="c">
+DELETE 
+FROM 
+	TB_COMMENT
+WHERE 
+	COMMENT_NUM=#{commentNum}
+</delete>
+
+</mapper>
+
+

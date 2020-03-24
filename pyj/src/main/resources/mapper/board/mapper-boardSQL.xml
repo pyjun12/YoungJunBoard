@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="board">
+
+<!-- 게시글 작성 -->
+<insert id="insertBoard" parameterType="b" useGeneratedKeys="true" keyProperty="bno" >
+<!-- 유저제너레이터키는 자동적으로 증가되는 키를 받음 (마이바티스에서 제공)
+ getGeneratedKeys()를 사용할 수 있게 true로 설정 -->
+
+<!--  keyProperty(키프로퍼티) = 받을 키 /선택된 키   방금 입력한 값의 특정값을 리턴해주고 싶다.-->
+<!-- order="BEFORE"는 insert를 실행하기전에 실행한다는 설정 -->
+<!-- 
+1) insert쿼리를 실행기전에 SELECT BOARD_SEQ.NEXTVAL FROM DUAL을 실행
+
+2) 실행한 쿼리에서 가져올값 (keyProperty="bno") bno를 _int형으로 가져옴
+
+3) <insert>안에 있는 keyProperty에 의해 <selectKey>에 있는 keyProperty값 bno를 가져옴
+
+4) bno값 파라미터로 넣어줌. 서비스의  FileUtil에서 쓸수있다.
+-->
+<selectKey keyProperty="bno" resultType="int" order="BEFORE">
+	SELECT B_SEQ.NEXTVAL FROM DUAL
+</selectKey>
+<!-- selectkey구문을 통해 시퀀스값을 따로빼서 값을 사용 , 다음게시글번호를 가져온 후 그값은 파라미터에 다시 저장된다. -->
+INSERT INTO 
+TB_BOARD(
+	BNO
+	,BOARD_USER_ID
+	,BOARD_SUBJECT
+	,BOARD_CONTENT
+	,BOARD_VIEWCHECK
+	,BOARD_RECOMMEND
+	,BOARD_REGDATE
+	,B_GROUPNO
+	,B_GROUPSEQ
+	,B_GROUPDEP
+	,B_PARENT
+	,BOARD_CODE_NUM
+		)
+VALUES(
+	#{bno}
+	,#{boardUserId}
+	,#{boardSubject}
+	,#{boardContent}
+	,0
+	,0 
+	,SYSDATE
+	,#{bno}
+	,0
+	,0
+	,0
+	,#{boardCodeNum}
+	)
+</insert>
+
+<!-- 파일 저장 -->
+<insert id="insertFile" parameterType="hashMap">
+INSERT INTO 
+	TB_FILE(
+		FILE_NUM
+		,F_BNO
+		,FILE_ORINAME
+		,FILE_RENAME
+		,FILE_SIZE
+			)
+	VALUES(
+		TB_FILE_SEQ.NEXTVAL
+		,#{BNO}
+		,#{FILE_ORINAME}
+		,#{FILE_RENAME}
+		,#{FILE_SIZE}
+		)
+</insert>
+
+<!-- 게시글 내용 클릭시 상세페이지 보기 -->
+<select id="boardClick" parameterType="_int" resultType="b">
+SELECT 
+	BNO AS bno
+	,BOARD_USER_ID AS boardUserId
+	,BOARD_SUBJECT AS boardSubject
+	,BOARD_CONTENT AS boardContent
+	,BOARD_REGDATE AS boardRegdate
+	,BOARD_VIEWCHECK AS boardViewcheck
+	,BOARD_RECOMMEND AS boardRecommend
+	,B_GROUPNO AS boardGroupNo
+	,B_GROUPSEQ AS boardGroupSeq
+	,B_GROUPDEP AS boardGroupDep
+	,B_PARENT AS boardParentNo
+FROM 
+	TB_BOARD
+WHERE 
+	BNO=#{bno} 
+</select>
+
+<!-- 게시글 내용 상세보기 클릭시 조회수+1 -->
+<update id="boardView" parameterType="b">
+UPDATE 
+	TB_BOARD 
+SET 
+	BOARD_VIEWCHECK=#{boardViewcheck}
+WHERE 
+	BNO=#{bno} 
+</update>
+
+<!-- 따봉(추천)수+1 -->
+<update id="boardgood" parameterType="b">
+UPDATE 
+	TB_BOARD 
+SET 
+	BOARD_RECOMMEND=BOARD_RECOMMEND+1 
+	,BOARD_VIEWCHECK=BOARD_VIEWCHECK-1
+WHERE 
+	BNO=#{bno} 
+</update>
+
+<!--게시글 검색+페이징+날짜타입 문자열로 TO_CHAR로 변환 -->
+<select id="searchBoard" parameterType="b" resultType="b">
+
+  SELECT 
+	BNO AS bno
+	,BOARD_USER_ID AS boardUserId
+	,BOARD_SUBJECT AS boardSubject
+	,BOARD_CONTENT AS boardContent
+	,BOARD_REGDATE AS boardRegdate
+	,BOARD_VIEWCHECK AS boardViewcheck
+	,BOARD_RECOMMEND AS boardRecommend
+	,TO_CHAR(BOARD_REGDATE,'yyyy-mm-dd hh24:mi') as boardRegdateymdhms
+	,TO_CHAR(BOARD_REGDATE,'yyyy-mm-dd') as boardRegdateymd
+    ,(
+    	SELECT 
+    		COUNT(c.COMMENT_NUM)
+      	FROM 
+			TB_COMMENT c 
+	 	 WHERE 
+		 	c.COMMENT_BOARD_NUM=BNO 
+	 ) AS commentCount
+    ,(
+    	SELECT 
+    		COUNT(f.FILE_NUM)
+		FROM 
+			TB_FILE f
+        WHERE 
+       		f.F_BNO=BNO 
+      ) AS fileox
+    ,(
+  		SELECT 
+  			min(f.FILE_NUM)
+        FROM 
+        	TB_FILE f
+        WHERE 
+        	f.F_BNO= A.BNO 
+      ) AS filenum  
+      ,B_GROUPNO as boardGroupNo
+      ,B_GROUPSEQ as boardGroupSeq
+      ,B_GROUPDEP as boardGroupDep
+      
+FROM 
+	(
+		SELECT 
+			ROWNUM AS NUM , A.* 
+		FROM (
+				SELECT *
+				FROM 
+					TB_BOARD
+		 		<if test="select!=null and select.equals('작성자')">
+					WHERE BOARD_USER_ID LIKE '%'||#{search}||'%' AND BOARD_CODE_NUM=#{boardCodeNum}
+					AND TO_CHAR(BOARD_REGDATE,'YYYY-MM-DD') BETWEEN #{datepick1} AND #{datepick2}
+				</if>
+		 		<if test="select!=null and select.equals('제목')">
+		    		WHERE BOARD_SUBJECT LIKE '%'||#{search}||'%' AND BOARD_CODE_NUM=#{boardCodeNum}
+		    		AND TO_CHAR(BOARD_REGDATE,'YYYY-MM-DD') BETWEEN #{datepick1} AND #{datepick2}
+		 		</if>
+		  		<if test="select!=null and select.equals('내용')">
+		    		WHERE BOARD_CONTENT LIKE '%'||#{search}||'%' AND BOARD_CODE_NUM=#{boardCodeNum}
+		    		AND TO_CHAR(BOARD_REGDATE,'YYYY-MM-DD') BETWEEN #{datepick1} AND #{datepick2}
+		  		</if>
+		  	
+				ORDER BY 
+					B_GROUPNO DESC	, B_GROUPSEQ ASC
+				)A
+	)A
+WHERE 
+	NUM BETWEEN #{start} AND #{end}
+ORDER BY
+	B_GROUPNO DESC,B_GROUPSEQ ASC
+
+
+</select>
+
+<!-- 게시글 수정 -->
+<update id="updateboard" parameterType="b">
+UPDATE 
+	TB_BOARD 
+SET 
+	 BOARD_SUBJECT=#{boardSubject}
+	,BOARD_CONTENT=#{boardContent}
+	,BOARD_REGDATE=SYSDATE
+WHERE 
+	BNO=#{bno} 
+</update>
+
+<!-- 게시글 삭제 -->
+<delete id="deleteboard" parameterType="b">
+DELETE 
+FROM 
+	TB_BOARD
+WHERE 
+	BNO=#{bno} 
+	
+</delete>
+
+<!--
+원본게시글이삭제되면 해당 아래게시글까지 전부지우기 +글쓰기할떄 boardParent를 0으로 바꿧는데 #{bno}로 인서트하도록 변경하면됨
+DELETE 
+FROM 
+	TB_BOARD
+WHERE 
+	BNO IN(
+	SELECT 
+		BNO
+	FROM 
+		TB_BOARD
+	START WITH 
+		BNO=#{bno} 검색을 시작할 번호
+	CONNECT BY
+		 NOCYCLE PRIOR 
+		 BNO=B_PARENT
+	 BNO가 상위 B_PARENT가 하위  
+	 BNO값이 B_PARNENT인 모든행을 찾아라  
+	 상위하위계층 
+	 ex) 344번게시글의 부모번호 344 / 345번게시글의 부모 344 / 346번게시글의 부모 345
+	)  -->
+
+
+<!-- 삭제하기전에 답글이있는지 확인  -->
+<select id="selectdelBoard" parameterType="b" resultType="int">
+SELECT 
+	COUNT(BNO)
+FROM
+	TB_BOARD
+WHERE
+	B_PARENT = #{bno}
+	
+</select>
+
+<!-- 검색한 총 게시물 수 -->
+<select id="searchTotalBoard" parameterType="b" resultType="_int">
+ SELECT 
+ 	COUNT(*) AS CNT
+ FROM 
+ 	TB_BOARD 
+
+ 		<if test="select!=null and select.equals('작성자')">
+			WHERE BOARD_USER_ID LIKE '%'||#{search}||'%' AND BOARD_CODE_NUM=#{boardCodeNum}
+			AND TO_CHAR(BOARD_REGDATE,'YYYY-MM-DD') BETWEEN #{datepick1} AND #{datepick2}
+		</if>
+		 <if test="select!=null and select.equals('제목')">
+		    WHERE BOARD_SUBJECT LIKE '%'||#{search}||'%' AND BOARD_CODE_NUM=#{boardCodeNum}
+		    AND TO_CHAR(BOARD_REGDATE,'YYYY-MM-DD') BETWEEN #{datepick1} AND #{datepick2}
+		 </if>
+		  <if test="select!=null and select.equals('내용')">
+		    WHERE BOARD_CONTENT LIKE '%'||#{search}||'%' AND BOARD_CODE_NUM=#{boardCodeNum}
+		    AND TO_CHAR(BOARD_REGDATE,'YYYY-MM-DD') BETWEEN #{datepick1} AND #{datepick2}
+		  </if>
+		  
+</select>
+
+<!-- 게시글 총 갯수 -->
+<select id="totalcount" parameterType="_int" resultType="_int">
+SELECT 
+	COUNT(*) AS CNT
+ FROM 
+ 	TB_BOARD 
+ WHERE
+ 	BOARD_CODE_NUM=#{boardCodeNum}
+
+
+
+</select>
+<!-- index에서 최신 5개의 글 보여주기 -->
+<select id="boardList5" parameterType="b" resultType="b">
+SELECT 
+	 BNO AS bno
+	,BOARD_USER_ID AS boardUserId
+	,BOARD_SUBJECT AS boardSubject
+	,BOARD_CONTENT AS boardContent
+	,BOARD_REGDATE AS boardRegdate
+	,BOARD_VIEWCHECK AS boardViewcheck
+	,BOARD_RECOMMEND AS boardRecommend
+FROM 
+	(SELECT 
+		ROWNUM AS NUM
+		,TB_BOARD.* 
+	FROM 
+		(
+		SELECT *
+		FROM 
+			TB_BOARD
+		WHERE
+			BOARD_CODE_NUM =1
+		ORDER BY 
+			BOARD_REGDATE DESC
+		)
+	TB_BOARD
+	)
+WHERE 
+	NUM BETWEEN 1 AND 5
+</select>
+
+<!-- 오늘 등록한 게시글 갯수 출력 -->
+<select id="todayBoard" parameterType="b" resultType="int">
+SELECT 
+	COUNT(BNO)
+FROM 
+	TB_BOARD
+WHERE 
+	TO_CHAR( SYSDATE, 'YYYY-MM-DD')=TO_CHAR(BOARD_REGDATE, 'YYYY-MM-DD') 
+</select>
+
+<!-- 5일전 게시글 출력 -->
+<select id="total5Board" parameterType="b" resultType="int">
+<!-- xml에서 < > 연산자를 태그로 인식하기때문에 태그로 인식하지않게 해주는 문구 -->
+<![CDATA[
+SELECT 
+	COUNT(BNO)
+FROM 
+	TB_BOARD
+WHERE 
+	TO_CHAR( trunc(sysdate-5), 'YYYY-MM-DD') < TO_CHAR(BOARD_REGDATE, 'YYYY-MM-DD') 
+	 ]]>
+</select>
+
+<!-- 첨부파일 조회 -->
+<select id="selectFilelist" parameterType="int" resultType="hashMap">
+SELECT 
+	FILE_NUM ,
+	FILE_ORINAME,
+	ROUND(FILE_SIZE/1024,1) AS FILE_SIZE,
+	DEL_GB
+FROM 
+	TB_FILE
+WHERE 
+	F_BNO = #{bno} AND DEL_GB='N'
+ORDER BY 
+	FILE_NUM ASC
+</select>
+
+<!-- 첨부파일 다운 -->
+<select id="selectFileInfo" parameterType="hashMap" resultType="hashMap">
+	SELECT 
+		FILE_RENAME,
+		FILE_ORINAME
+	FROM 
+		TB_FILE
+	WHERE 
+		FILE_NUM = #{FILE_NUM}
+</select>
+
+<!-- 첨부파일 삭제 -->
+<delete id="deleteFile" parameterType="b">
+DELETE 
+FROM 
+	TB_FILE
+WHERE 
+	F_BNO=#{bno} AND FILE_NUM=#{fno}
+</delete>
+
+<!-- 답글 seq+1 (부모글비교) -->
+<update id="updatereply" parameterType="b">
+UPDATE 
+	TB_BOARD
+SET
+	B_GROUPSEQ=B_GROUPSEQ+1
+WHERE
+	B_GROUPNO=#{boardGroupNo} AND B_GROUPSEQ > #{boardGroupSeq}
+	
+</update>
+
+<!-- 답글 인서트 -->
+<insert id="insertreply" parameterType="b" useGeneratedKeys="true" keyProperty="bno">
+	<selectKey keyProperty="bno" resultType="int" order="BEFORE">
+		SELECT B_SEQ.NEXTVAL FROM DUAL
+	</selectKey>
+INSERT INTO 
+TB_BOARD(
+	BNO
+	,BOARD_USER_ID
+	,BOARD_SUBJECT
+	,BOARD_CONTENT
+	,BOARD_VIEWCHECK
+	,BOARD_RECOMMEND
+	,BOARD_REGDATE
+	,B_GROUPNO
+	,B_GROUPSEQ
+	,B_GROUPDEP
+	,B_PARENT
+	,BOARD_CODE_NUM
+		)
+VALUES(
+	#{bno}
+	,#{boardUserId}
+	,#{boardSubject}
+	,#{boardContent}
+	,0
+	,0 
+	,SYSDATE
+	,#{boardGroupNo}
+	,#{boardGroupSeq}
+	,#{boardGroupDep}
+	,#{boardParentNo}
+	,#{boardCodeNum}
+	)
+</insert>
+
+<select id="MasterBoardlist" parameterType="mb" resultType="mb">
+SELECT 
+	BOARD_CODE_NUMBER as boardCodeNumber
+   ,BOARD_CODE_NAME as boardCodeName
+FROM
+	TB_MASTERBOARD
+
+ORDER BY BOARD_CODE_NUMBER ASC
+</select>
+
+<select id="MasterBoardName" parameterType="_int" resultType="String">
+SELECT
+	BOARD_CODE_NAME
+FROM
+	TB_MASTERBOARD
+WHERE
+	BOARD_CODE_NUMBER=#{boardCodeNumber}
+</select>
+
+<select id="totalBoardMax" parameterType="b" resultType="_int">
+SELECT
+	COUNT(BNO)
+FROM
+	TB_BOARD
+
+</select>
+ </mapper>

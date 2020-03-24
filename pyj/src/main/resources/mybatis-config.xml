@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN" "http://mybatis.org/dtd/mybatis-3-config.dtd" >
+<configuration>
+
+<settings>
+		<setting name ="jdbcTypeForNull" value="NULL"/>
+</settings>
+
+<typeAliases >
+<typeAlias type="org.core.user.model.vo.User" alias="u"/>
+<typeAlias type="org.core.board.model.vo.Board" alias="b"/>
+<typeAlias type="org.core.file.model.vo.FileJun" alias="f"/>
+<typeAlias type="org.core.comment.model.vo.Comment" alias="c"/>
+<typeAlias type="org.core.board.model.vo.MasterBoard" alias="mb"/>
+</typeAliases>
+
+
+</configuration>

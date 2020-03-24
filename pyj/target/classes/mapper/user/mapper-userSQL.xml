@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="user">
+
+<!-- 로그인 -->
+<select id="loginUser" parameterType="u" resultType="u">
+SELECT 
+	 USER_ID AS userId
+	,USER_PASSWORD AS userPassword
+	,USER_NAME AS userName
+FROM 
+	TB_USER
+WHERE 
+	USER_ID=#{userId} and USER_PASSWORD=#{userPassword}
+</select>
+
+<!-- 회원가입 -->
+<insert id="InsertUserData" parameterType="u" >
+INSERT INTO 
+	TB_USER
+VALUES(
+	#{userId}
+	,#{userPassword}
+	,#{userName}
+	)
+</insert>
+
+<!-- 회원탈퇴 -->
+<delete id="deleteuser" parameterType="u">
+DELETE
+FROM 
+	TB_USER
+WHERE 
+	USER_ID=#{userId}
+</delete>
+  
+<!-- 총 회원수 카운트 -->
+<select id="userCount" parameterType="u" resultType="_int" >
+SELECT 
+	COUNT(*) AS CNT
+FROM 
+	TB_USER
+</select>
+  
+  <!-- 총 회원수 카운트 -->
+ <select id="userCountUser" parameterType="u" resultType="_int" >
+SELECT 
+	COUNT(*) AS CNT
+FROM 
+	TB_USER
+</select> 
+  
+ <!-- 유저 전체회원 가져오기 -->
+ <select id="userList" parameterType="u" resultType="u">
+ SELECT 
+ 	USER_ID AS userId
+	,USER_PASSWORD AS userPassword
+	,USER_NAME AS userName
+FROM 
+	TB_USER
+  
+ </select>
+ <!-- 최대 게시글 등록자 맨위 1명 출력 -->
+ <select id="userMax" parameterType="u" resultType="String">
+SELECT *
+FROM (
+		SELECT u.USER_NAME
+		,COUNT(b.BOARD_USER_ID)
+		FROM 
+			TB_USER u 
+		JOIN 
+			TB_BOARD b
+		ON 
+			u.USER_ID=b.BOARD_USER_ID
+		GROUP BY
+		u.USER_NAME,b.BOARD_USER_ID
+		ORDER BY
+    	COUNT(b.BOARD_USER_ID) DESC
+    )
+WHERE 
+	ROWNUM BETWEEN 1 AND 1
+ </select>
+ 
+ <!-- 아이디 중복 체크 -->
+ <select id="idChk" resultType="int">
+ SELECT 
+ 	COUNT(*)
+  FROM 
+  	TB_USER
+  WHERE 
+  	USER_ID = #{userId}
+ </select>
+ 
+</mapper>
